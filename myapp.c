@@ -37,13 +37,6 @@ void control(char led_path_brightness[][MAXSTRLEN+1]);
 
 int main(int argc, char* argv[]){
 	remove_trigger(led_path_trigger);	
-	/*char *temp_led_path_brightness[NUMLED];
-
-	for (int i = 0; i < NUMLED; i++) {
-	    	temp_led_path_brightness[i] = led_path_brightness[i];
-	}
-
-	control(temp_led_path_brightness);*/
 	control(led_path_brightness);	
 	return 0;
 }
@@ -51,10 +44,10 @@ int main(int argc, char* argv[]){
 void remove_trigger(char led_path_trigger[][MAXSTRLEN+1]){
 	for(int i = 0; i < NUMLED; i++){
 		FILE *trigger_file = fopen(led_path_trigger[i], "w");
-		/*if(trigger_file == NULL){
+		if(trigger_file == NULL){
 			perror("Error opening trigger file");
 			exit(EXIT_FAILURE);
-		}*/
+		}
 
 		fprintf(trigger_file, "none");
 		fclose(trigger_file);
@@ -62,29 +55,27 @@ void remove_trigger(char led_path_trigger[][MAXSTRLEN+1]){
 }
 
 void turn_on(char *led_path_brightness){
-	for(int i = 0; i < NUMLED; i++){
-		FILE *brightness_file = fopen(led_path_brightness, "w");
-		/*if(brightness_file == NULL){
-			perror("Error opening brightness file");
-			exit(EXIT_FAILURE);
-		}*/
-
-		fprintf(brightness_file, "1");
-		fclose(brightness_file);
+	FILE *brightness_file = fopen(led_path_brightness, "w");
+	
+	if(brightness_file == NULL){
+		perror("Error opening brightness file");
+		exit(EXIT_FAILURE);
 	}
+
+	fprintf(brightness_file, "1");
+	fclose(brightness_file);
 }
 
 void turn_off(char *led_path_brightness){
-        for(int i = 0; i < NUMLED; i++){
-                FILE *brightness_file = fopen(led_path_brightness, "w");
-                /*if(brightness_file == NULL){
-                        perror("Error opening brightness file");
-                        exit(EXIT_FAILURE);
-                }*/
-
-                fprintf(brightness_file, "0");
-                fclose(brightness_file);
+        FILE *brightness_file = fopen(led_path_brightness, "w");
+        
+	if(brightness_file == NULL){
+                perror("Error opening brightness file");
+                exit(EXIT_FAILURE);
         }
+
+        fprintf(brightness_file, "0");
+	fclose(brightness_file);
 }
 
 void control(char led_path_brightness[][MAXSTRLEN+1]){
@@ -105,7 +96,7 @@ void control(char led_path_brightness[][MAXSTRLEN+1]){
 			else{
 				turn_off(led_path_brightness[i]);
 			}
-			sleep(2);
+			sleep(1);
 		}
 	}
 }
