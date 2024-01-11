@@ -144,6 +144,7 @@ void do_turn_off(char gpio_value[]){
 
 void do_control(char gpio_value[][MAXSTRLEN+1]){
 	int epoll_fd = epoll_create1(0);
+	printf("epoll_fd is %d\n", epoll_fd);
     if (epoll_fd == -1)
     {
         perror("Error creating epoll file descriptor");
@@ -175,15 +176,15 @@ void do_control(char gpio_value[][MAXSTRLEN+1]){
     while (1)
     {
         int num_events = epoll_wait(epoll_fd, events, NUMBUT, -1);
-        printf("bun event is %d\n", num_events);
-	printf("waiting to enter loop");
+        printf("num event is %d\n", num_events);
+	printf("waiting to enter loop\n");
 	if (num_events == -1)
         {
             perror("Error waiting for events");
             exit(EXIT_FAILURE);
         }
 	if (num_events > 0){
-		printf("got in loop");
+		printf("got in loop\n");
         for (int i = 0; i < num_events; i++)
         {
             if (events[i].events & EPOLLIN)
