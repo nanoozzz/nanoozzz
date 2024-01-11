@@ -1,3 +1,30 @@
+/*
+* Copyright (C) 2013 - 2016  Xilinx, Inc.  All rights reserved.
+*
+* Permission is hereby granted, free of charge, to any person
+* obtaining a copy of this software and associated documentation
+* files (the "Software"), to deal in the Software without restriction,
+* including without limitation the rights to use, copy, modify, merge,
+* publish, distribute, sublicense, and/or sell copies of the Software,
+* and to permit persons to whom the Software is furnished to do so,
+* subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included
+* in all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+* IN NO EVENT SHALL XILINX  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+* CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*
+* Except as contained in this notice, the name of the Xilinx shall not be used
+* in advertising or otherwise to promote the sale, use or other dealings in this
+* Software without prior written authorization from Xilinx.
+*
+*/
+
 /*this program controls GPIO LEDs using inputs from GPIO button*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +34,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <sys/epoll.h>
 
 #define MAXSTRLEN 50
 #define NUMGPIO 10
@@ -115,47 +143,80 @@ void do_turn_off(char gpio_value[]){
 }
 
 void do_control(char gpio_value[][MAXSTRLEN+1]){
-	//int sw[NUMBUT], led[NUMLED];
-	//int next_value;
-	struct pollfd file_descriptor[NUMBUT];
-	char tmp;
+	int epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1)
+    {
+        perror("Error creating epoll file descriptor");
+        exit(EXIT_FAILURE);
+    }
 
-	for (int i = 0; i < NUMBUT; i++) {
-		file_descriptor[i].fd = open(gpio_value[i], O_RDONLY);
-		file_descriptor[i].events = POLLPRI;
-	}
+    struct epoll_event ev;
+    struct epoll_event events[NUMBUT];
 
-	while(!stop_flag){
-		int flag = poll(file_descriptor, NUMBUT, -1);
+    for (int i = 0; i < NUMBUT; i++)
+    {
+        int fd = open(gpio_value[i], O_RDONLY | O_NONBLOCK);
+        if (fd == -1)
+        {
+            perror("Error opening GPIO file");
+            exit(EXIT_FAILURE);
+        }
 
-		if (flag > 0) {
-			for (int i = 0; i < NUMBUT; i++) {
-				if (file_descriptor[i].revents & POLLPRI) {
-					if (lseek(file_descriptor[i].fd, 0, SEEK_SET) == -1){
-						perror("error during lseek");
-						exit(EXIT_FAILURE);
-					}
-					if (read(file_descriptor[i].fd, &tmp, 1) == -1) {
-						perror("error during read");
-						exit(EXIT_FAILURE);
-					}
-					if (tmp == '1') {
-						do_turn_on(gpio_value[NUMLED + i]);
-					}
-					else {
-						do_turn_off(gpio_value[NUMLED + i]);
-					}
-				}
-			}
-		}
-	}		
-	
-	for (int i = 0; i < NUMBUT ; i++) {
-		if (close(file_descriptor[i].fd) == -1) {
-			perror("error closing file");
-			exit(EXIT_FAILURE);
-		}
-	}
+        ev.events = EPOLLIN;
+        ev.data.fd = fd;
+
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1)
+        {
+            perror("Error adding file descriptor to epoll");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    while (1)
+    {
+        int num_events = epoll_wait(epoll_fd, events, NUMBUT, -1);
+        printf("bun event is %d\n", num_events);
+	printf("waiting to enter loop");
+	if (num_events == -1)
+        {
+            perror("Error waiting for events");
+            exit(EXIT_FAILURE);
+        }
+	if (num_events > 0){
+		printf("got in loop");
+        for (int i = 0; i < num_events; i++)
+        {
+            if (events[i].events & EPOLLIN)
+            {
+                char tmp;
+                if (lseek(events[i].data.fd, 0, SEEK_SET) == -1)
+                {
+                    perror("Error during lseek");
+                    exit(EXIT_FAILURE);
+                }
+                if (read(events[i].data.fd, &tmp, 1) == -1)
+                {
+                    perror("Error during read");
+                    exit(EXIT_FAILURE);
+                }
+
+                if (tmp == '1')
+                {
+                    do_turn_on(gpio_value[NUMLED + i]);
+                }
+                else
+                {
+                    do_turn_off(gpio_value[NUMLED + i]);
+                }
+            }
+        }
+
+        // Introduce a short sleep to reduce CPU usage
+        usleep(10000); // Sleep for 10 milliseconds (adjust as needed)
+    }
+    }
+
+    close(epoll_fd);
 }
 
 int main(int argc, char *argv[])
@@ -167,4 +228,3 @@ int main(int argc, char *argv[])
         do_control(gpio_value);
         return 0;
 }
-
