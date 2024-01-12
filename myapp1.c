@@ -64,9 +64,9 @@ void do_turn_off(char gpio_value[]);
 void do_control(char gpio_value[][MAXSTRLEN+1]);
 
 void sigint_handler(int signum) {
-    stop_flag = 1;
+	stop_flag = 1;
 }
-
+	
 void do_export(char gpio_export[]){
 	for (int i = STARTBUT; i < STARTBUT + NUMGPIO; i++) {
 		FILE *export_file = fopen(gpio_export, "w");
@@ -118,79 +118,66 @@ void do_turn_off(char gpio_value[]){
 void do_control(char gpio_value[][MAXSTRLEN+1]){
 	int epoll_fd = epoll_create1(0);
 	printf("epoll_fd is %d\n", epoll_fd);
-    if (epoll_fd == -1)
-    {
-        perror("Error creating epoll file descriptor");
-        exit(EXIT_FAILURE);
-    }
+	if (epoll_fd == -1) {
+        	perror("Error creating epoll file descriptor");
+        	exit(EXIT_FAILURE);
+    	}
 
-    struct epoll_event ev;
-    struct epoll_event events[NUMBUT];
+    	struct epoll_event ev;
+    	struct epoll_event events[NUMBUT];
 
-    for (int i = 0; i < NUMBUT; i++)
-    {
-        int fd = open(gpio_value[i], O_RDONLY);
-        if (fd == -1)
-        {
-            perror("Error opening GPIO file");
-            exit(EXIT_FAILURE);
-        }
+    	for (int i = 0; i < NUMBUT; i++) {
+        	int fd = open(gpio_value[i], O_RDONLY);
+        	if (fd == -1) {
+            		perror("Error opening GPIO file");
+            		exit(EXIT_FAILURE);
+        	}
 
-        ev.events = EPOLLIN | EPOLLET;
-        ev.data.fd = fd;
+        	ev.events = EPOLLIN | EPOLLET;
+        	ev.data.fd = fd;
 
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1)
-        {
-            perror("Error adding file descriptor to epoll");
-            exit(EXIT_FAILURE);
-        }
-    }
+        	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
+			perror("Error adding file descriptor to epoll");
+            		exit(EXIT_FAILURE);
+        	}
+    	}
 
-    while (1)
-    {
-        int num_events = epoll_wait(epoll_fd, events, NUMBUT, -1);
-        printf("num event is %d\n", num_events);
-	printf("waiting to enter loop\n");
-	if (num_events == -1)
-        {
-            perror("Error waiting for events");
-            exit(EXIT_FAILURE);
-        }
-	if (num_events > 0){
-		printf("got in loop\n");
-        for (int i = 0; i < num_events; i++)
-        {
-            if (events[i].events & EPOLLIN)
-            {
-                char tmp;
-                if (lseek(events[i].data.fd, 0, SEEK_SET) == -1)
-                {
-                    perror("Error during lseek");
-                    exit(EXIT_FAILURE);
-                }
-                if (read(events[i].data.fd, &tmp, 1) == -1)
-                {
-                    perror("Error during read");
-                    exit(EXIT_FAILURE);
-                }
+    	while (1) {
+        	int num_events = epoll_wait(epoll_fd, events, NUMBUT, -1);
+        	printf("num event is %d\n", num_events);
+		printf("waiting to enter loop\n");
+		if (num_events == -1) {
+            		perror("Error waiting for events");
+            		exit(EXIT_FAILURE);
+        	}
+		if (num_events > 0){
+			printf("got in loop\n");
+        		for (int i = 0; i < num_events; i++) {
+            			if (events[i].events & EPOLLIN) {
+                			char tmp;
+                			if (lseek(events[i].data.fd, 0, SEEK_SET) == -1) {
+                    				perror("Error during lseek");
+                    				exit(EXIT_FAILURE);
+                			}
+                			if (read(events[i].data.fd, &tmp, 1) == -1) {
+                    				perror("Error during read");
+                    				exit(EXIT_FAILURE);
+                			}
 
-                if (tmp == '1')
-                {
-                    do_turn_on(gpio_value[NUMLED + i]);
-                }
-                else
-                {
-                    do_turn_off(gpio_value[NUMLED + i]);
-                }
-            }
-        }
+                			if (tmp == '1') {
+                    				do_turn_on(gpio_value[NUMLED + i]);
+                			}
+                			else {
+                    				do_turn_off(gpio_value[NUMLED + i]);
+                			}
+            			}
+        		}
 
-        // Introduce a short sleep to reduce CPU usage
-        usleep(10000); // Sleep for 10 milliseconds (adjust as needed)
-    }
-    }
-
-    close(epoll_fd);
+        	// Introduce a short sleep to reduce CPU usage
+        	usleep(10000); // Sleep for 10 milliseconds (adjust as needed)
+    		}
+    	}
+    	close(epoll_fd);
 }
 
 int main(int argc, char *argv[])
