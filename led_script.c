@@ -1,4 +1,7 @@
-/*W/
+/*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
+  This program controls GPIO LEDs in a pattern using C script
+  via LED subsystem.
+  Board used: Zynq UltraScale+ MPSoC ZCU102*/
 
 #include <stdio.h>
 #include <stdlib.h>
