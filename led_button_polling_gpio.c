@@ -1,4 +1,8 @@
-/*this program controls GPIO LEDs using inputs from GPIO button*/
+/*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
+  This program controls GPIO LEDs using inputs from GPIO button 
+  (polling method) via GPIO subsystem.
+  Board used: Zynq UltraScale+ MPSoC ZCU102*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
