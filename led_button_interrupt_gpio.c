@@ -1,4 +1,4 @@
-/*written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
+/*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
   This program controls GPIO LEDs using inputs from GPIO button 
   (interrupt method) via GPIO subsystem.
   Board used: Zynq UltraScale+ MPSoC ZCU102*/
