@@ -1,4 +1,4 @@
-/*This program controls GPIO LEDS on ZCU102 board*/
+/*W/
 
 #include <stdio.h>
 #include <stdlib.h>
