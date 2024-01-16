@@ -1,4 +1,5 @@
-/*this program controls GPIO LEDs using inputs from GPIO button*/
+/*this program controls GPIO LEDs using inputs from GPIO button (interrupt method) 
+  via GPIO subsystem*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
