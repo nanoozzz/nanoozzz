@@ -1,5 +1,5 @@
 - 👋 Hi, I’m @nanoozzz
-- 👀 I’m interested in learning new thing
+- 👀 I’m interested in learning embedded C, automation, electronics...
 - 🌱 I’m currently learning Mechatronics Engineering at Unimelb
 - 📫 Reach me at nguyenle.18082003@gmail.com 
 
