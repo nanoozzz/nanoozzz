@@ -4,13 +4,12 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <stdint.h>
-#include <sys/epoll.h>
 
 #define GPIO_MAP_SIZE 0x10000
 #define GPIO_DATA_OFFSET 0x0
 #define GPIO_TRI_OFFSET 0x4
 #define GPIO2_DATA_OFFSET 0x8
-#define GPIO2_TRI_OFFSET 0xC
+#define GPIO2_TRI_OFFSET 0xc
 #define GIER 0x11c
 #define IP_IER 0x128
 #define IP_ISR 0x120
@@ -24,8 +23,8 @@ int main(int argc, char *argv[])
 	}
 	printf("Checkpoint 1: fd done\n\n");
 
-	uint32_t *gpios = malloc(100 * sizeof(uint32_t));
-       	gpios = mmap(NULL, GPIO_MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	//uint32_t *gpios = malloc(100 * sizeof(uint32_t));
+       	uint32_t* gpios = mmap(NULL, GPIO_MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	/*print pointer value and the value of what it is pointing at*/
 	printf("gpios: %p\n", gpios);
 	printf("Checkpoint 2: mmap done\n\n");
@@ -39,13 +38,14 @@ int main(int argc, char *argv[])
 	val2 = *(uint32_t *)(gpios + GPIO2_DATA_OFFSET / sizeof(uint32_t));
 	printf("GPIO2_DATA_OFFSET: %08x\n", val2);
 	val3 = *(uint32_t *)(gpios + GPIO2_TRI_OFFSET / sizeof(uint32_t));
-	printf("GPIO_TRI_OFFSET: %08x\n", val3);
+	printf("GPIO2_TRI_OFFSET: %08x\n", val3);
 	val4 = *(uint32_t *)(gpios + GIER / sizeof(uint32_t));
 	printf("GIER: %08x\n", val4);
 	val5 = *(uint32_t *)(gpios + IP_IER / sizeof(uint32_t));
 	printf("IP_IER: %08x\n", val5);
 	val6 = *(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t));	
 	printf("IP_ISR: %08x\n", val6);
+	printf("\n");
 
 	/*enable all interupts*/
 	*(uint32_t *)(gpios + GIER / sizeof(uint32_t)) = 0x80000000;
@@ -70,9 +70,9 @@ int main(int argc, char *argv[])
 
 	/*set GPIO pin as input*/
 	/*read from GPIO*/
-	*(uint32_t *)(gpios + GPIO_TRI_OFFSET / sizeof(uint32_t)) = 31;
+	/**(uint32_t *)(gpios + GPIO_TRI_OFFSET / sizeof(uint32_t)) = 31;
 	val0 = *(uint32_t *)(gpios + GPIO_DATA_OFFSET / sizeof(uint32_t));
-	printf("Input is: %x\n", val0);
+	printf("Input is: %x\n", val0);*/
 	printf("Checkpoint 5: read from GPIO done\n\n");
 
 	/*print interrupts value*/
@@ -89,8 +89,6 @@ int main(int argc, char *argv[])
 		uint32_t count = 0;
 		int err;
 	while(1){
-		int irq = 1;
-        	write(fd, &irq, sizeof(irq));
         	printf("Checkpoint 6.0: enable UIO interrupt done\n\n");
 		printf("Checkpoint 6.1: waiting\n");
 		/*if (*(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t)) == 0x1){
@@ -98,7 +96,12 @@ int main(int argc, char *argv[])
 			val6 = *(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t));
                 	printf("IP_ISR: %08x\n", val6);
 		}*/
-		err = read(fd, &count, 4);
+		if (*(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t)) == 0x1) {
+        		// Handle the interrupt
+			*(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t)) = 0x1; // Clear the interrupt
+		}
+		err = read(fd, &count, sizeof(uint32_t));
+		*(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t)) = 0x1;
 		printf("err is: %d\n", err);
 		printf("Checkpoint 7: gotcha!\n");
 		
@@ -113,6 +116,8 @@ int main(int argc, char *argv[])
 		//*(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t)) = 0x1;
 		val6 = *(uint32_t *)(gpios + IP_ISR / sizeof(uint32_t));
        		printf("IP_ISR: %08x\n", val6);
+		usleep(10000);
+		count = 0;
 	}
 	//printf("Addr before unmap: %p\n", gpios);
 	munmap(gpios, GPIO_MAP_SIZE);
