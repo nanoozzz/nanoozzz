@@ -1,6 +1,7 @@
 /*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
  *This program polls 2 file descriptors (2 uio devices/buttons)
-  to control LEDs */
+  to control LEDs, but in a given order (i.e. One button has to
+  be pressed first) */
 
 #include <stdio.h>
 #include <poll.h>
