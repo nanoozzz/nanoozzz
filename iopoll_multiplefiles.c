@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 	
 	fd1 = open("/dev/uio5", O_RDWR);
 	if (fd1 < 1) {
-		printf("Open file /dev/uio4 error\n");
+		printf("Open file /dev/uio5 error\n");
 	}
 	gpios1 = mmap(NULL, GPIO_MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd1, 0);
 	printf("mmap done\n");
