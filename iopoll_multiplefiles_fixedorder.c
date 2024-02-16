@@ -1,6 +1,7 @@
 /*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
  *This program polls 2 file descriptors (2 uio devices/buttons)
-  to control LEDs in a given order */
+  to control LEDs in a given order 
+  Board used: Zynq UltraScale+ MPSoc ZCU102*/
 
 #include <stdio.h>
 #include <poll.h>
@@ -21,11 +22,11 @@
 #define GIER              0x11c
 #define IP_IER            0x128
 #define IP_ISR            0x120
-
+void do_control(uint32_t *gpios0, uint32_t *gpios1);
 int main(int argc, char *argv[])
 {
 	int irq0, irq1, fd0, fd1;
-	int flag0 = 0, flag1 = 0, pflag0 = 0, pflag1 = 0;
+	int flag0 = 0, flag1 = 0, pflag0 = 1, pflag1 = 1;
 	uint32_t *gpios0;
 	uint32_t *gpios1;
 	uint32_t val0, val1, val2, val3, val4, val5, val6;
@@ -47,7 +48,6 @@ int main(int argc, char *argv[])
 	/*enable all interrupts*/
         printf("Enable all interrupts gpios0\n");
         *(uint32_t *)(gpios0 + GIER / sizeof(uint32_t)) = 0x80000000;
-        //system("devmem 0xa000011c 32 0x80000000");
 	val4 = *(uint32_t *)(gpios0 + GIER / sizeof(uint32_t));
         printf("GIER: %8x\n", val4);
         *(uint32_t *)(gpios0 + IP_IER / sizeof(uint32_t)) = 0x1;
@@ -86,7 +86,6 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		int ret, res0, res1, buf0, buf1;
-		uint32_t tmp0 = 0, tmp1 = 0;
 		
 		printf("Toggle the button\n");
 		ret = poll(fds, 2, -1);
@@ -97,13 +96,15 @@ int main(int argc, char *argv[])
 		if ((fds[0].revents & POLLIN)) {
 			write(fds[0].fd, &irq0, sizeof(int));
 			res0 = read(fd0, &buf0, sizeof(int));
+
 			if (res0 > 0) {
-				printf("Interrupt uio0 caught\n");
+				printf("Interrupt uio0 caught, res0 is %d\n", res0);
 			}
 			*((uint32_t *)(gpios0 + IP_ISR / sizeof(uint32_t))) = 0x1; // toggle IP_ISR
 			pflag0 = flag0;
 			flag0 = !flag0;
-			if ((flag1 != 0) && (flag0 == 0)){
+			
+			if ((flag1 != 0) && (flag0 == 0) && (pflag0 != 1) && !*((uint32_t *)(gpios1 + GPIO2_DATA_OFFSET / sizeof(uint32_t)))){
 				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 0;
 			}
 		}
@@ -111,24 +112,31 @@ int main(int argc, char *argv[])
 		if ((fds[1].revents & POLLIN)) {
 			write(fds[1].fd, &irq1, sizeof(int));
 			res1 = read(fd1, &buf1, sizeof(int));
-                       	if (res1 > 0) {
-                               	printf("Interrupt uio1 caught\n");
+                       	
+			if (res1 > 0) {
+                               	printf("Interrupt uio1 caught, res1 is %d\n", res1);
 			}
 			*((uint32_t *)(gpios1 + IP_ISR / sizeof(uint32_t))) = 0x1; // toggle IP_ISR
 			pflag1 = flag1;
 			flag1 = !flag1;
-			if ((flag0 != 0) && (pflag0 == 0) && (flag1 != 0)) {
-                        	*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = (*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) & (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t))));
+
+			if ((((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 1) || ((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3)) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 1) {
+				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 1;
+			}
+			else if ((((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 2) || ((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3)) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 2) {
+				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 2;
+			}
+			else if (((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3) {
+				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 3;
 			}
 			else {
 				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 0;
 			}
 		}
 	}
-	
 	munmap(gpios0, GPIO_MAP_SIZE);
-	munmap(gpios1, GPIO_MAP_SIZE);
-	close(fd1);
-	close(fd0);
-	return 0;
+        munmap(gpios1, GPIO_MAP_SIZE);
+        close(fd1);
+        close(fd0);
+        return 0;
 }
