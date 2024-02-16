@@ -1,7 +1,7 @@
 /*Written by Nguyen Bao Nguyen Le | nguyenle.18082003@gmail.com
  *This program polls 2 file descriptors (2 uio devices/buttons)
   to control LEDs 
-  Board used: ZCU102 UltraScale+ */
+  Board used: Zynq UltraScale+ MPSoc ZCU102 */
 
 #include <stdio.h>
 #include <poll.h>
