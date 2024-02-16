@@ -22,7 +22,7 @@
 #define GIER              0x11c
 #define IP_IER            0x128
 #define IP_ISR            0x120
-void do_control(uint32_t *gpios0, uint32_t *gpios1);
+
 int main(int argc, char *argv[])
 {
 	int irq0, irq1, fd0, fd1;
