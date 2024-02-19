@@ -23,6 +23,10 @@
 #define IP_IER            0x128
 #define IP_ISR            0x120
 
+#define LED ((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t)))
+#define BUTTON0 ((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))
+#define BUTTON1 ((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))
+
 int main(int argc, char *argv[])
 {
 	int irq0, irq1, fd0, fd1;
@@ -120,17 +124,17 @@ int main(int argc, char *argv[])
 			pflag1 = flag1;
 			flag1 = !flag1;
 
-			if ((((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 1) || ((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3)) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 1) {
-				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 1;
+			if ((((*BUTTON0) == 1) || ((*BUTTON0) == 3)) && (*BUTTON1) == 1) {
+				*LED = 1;
 			}
-			else if ((((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 2) || ((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3)) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 2) {
-				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 2;
+			else if ((((*BUTTON0) == 2) || ((*BUTTON0) == 3)) && (*BUTTON1) == 2) {
+				*LED = 2;
 			}
-			else if (((*((uint32_t *)(gpios0 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3) && (*((uint32_t *)(gpios1 + GPIO_DATA_OFFSET / sizeof(uint32_t)))) == 3) {
-				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 3;
+			else if (((*BUTTON0) == 3) && (*BUTTON1) == 3) {
+				*LED = 3;
 			}
 			else {
-				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 0;
+				*LED = 0;
 			}
 		}
 	}
@@ -140,3 +144,4 @@ int main(int argc, char *argv[])
         close(fd0);
         return 0;
 }
+
