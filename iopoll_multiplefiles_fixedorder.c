@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
 			pflag0 = flag0;
 			flag0 = !flag0;
 			
-			if ((flag1 != 0) && (flag0 == 0) && (pflag0 != 1) && !*((uint32_t *)(gpios1 + GPIO2_DATA_OFFSET / sizeof(uint32_t)))){
-				*((uint32_t *)(gpios0 + GPIO2_DATA_OFFSET / sizeof(uint32_t))) = 0;
+			if ((flag1 != 0) && (flag0 == 0) && (pflag0 != 1) && !*BUTTON1){
+				*LED = 0;
 			}
 		}
 
@@ -144,4 +144,5 @@ int main(int argc, char *argv[])
         close(fd0);
         return 0;
 }
+
 
