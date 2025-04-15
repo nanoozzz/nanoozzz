@@ -1,0 +1,274 @@
+/*
+* KobukiNavigationStatechart.c
+*
+*/
+
+#include "kobukiNavigationStatechart.h"
+#include "C:\Users\asurajith\Documents\EMB_Wkshp\ELEN90066_2025_SM1 Courseware v1.0\src\Kobuki\KobukiSensorType.h"
+#include <math.h>
+#include <stdlib.h>
+
+
+typedef enum {
+	INITIAL = 0,						// Initial state
+	PAUSE_WAIT_BUTTON_RELEASE,			// Paused; pause button pressed down, wait until released before detecting next press
+	UNPAUSE_WAIT_BUTTON_PRESS,			// Paused; wait for pause button to be pressed
+	UNPAUSE_WAIT_BUTTON_RELEASE,		// Paused; pause button pressed down, wait until released before returning to previous state
+	DRIVE,								// Drive straight
+	TURN_R,
+	TURN_L, /// Turn                           /// Avoid obstacle
+	REVERSE,
+	HILL_DETECTION,
+	ADJUST
+} robotState_t;
+
+#define DEG_PER_RAD			(180.0 / M_PI)		// degrees per radian
+#define RAD_PER_DEG			(M_PI / 180.0)		// radians per degree
+
+void KobukiNavigationStatechart(
+	const int16_t 				maxWheelSpeed,
+	const int32_t 				netDistance,
+	const int32_t 				netAngle,
+	const KobukiSensors_t		sensors,
+	const accelerometer_t		accelAxes,
+	int16_t * const 			pRightWheelSpeed,
+	int16_t * const 			pLeftWheelSpeed,
+	const bool					isSimulator
+) {
+
+	// local state
+	static robotState_t 		state = INITIAL;				// current program state
+	static robotState_t			unpausedState = DRIVE;			// state history for pause region
+	static int32_t				distanceAtManeuverStart = 0;	// distance robot had travelled when a maneuver begins, in mm
+	static int32_t				angleAtManeuverStart = 0;		// angle through which the robot had turned when a maneuver begins, in deg
+
+	// outputs
+	int16_t						leftWheelSpeed = 0;				// speed of the left wheel, in mm/s
+	int16_t						rightWheelSpeed = 0;			// speed of the right wheel, in mm/s
+
+	bool C = sensors.bumps_wheelDrops.bumpCenter;
+	bool L = sensors.bumps_wheelDrops.bumpLeft;
+	bool R = sensors.bumps_wheelDrops.bumpRight;
+
+	double ax = accelAxes.x;
+	double ay = accelAxes.y;
+	double az = accelAxes.z;
+
+	double offsetFromY = atan(ax/ay)*180.0/M_PI;
+	double inclineAngle = atan(ay/az)*180.0/M_PI;
+	//double inclineAngle = atan(az / ay)*180.0 / M_PI;
+
+	static robotState_t prevState = DRIVE;
+
+	//*****************************************************
+	// state data - process inputs                        *
+	//*****************************************************
+
+
+
+	if (state == INITIAL
+		|| state == PAUSE_WAIT_BUTTON_RELEASE
+		|| state == UNPAUSE_WAIT_BUTTON_PRESS
+		|| state == UNPAUSE_WAIT_BUTTON_RELEASE
+		|| sensors.buttons.B0				// pause button
+		) {
+		switch (state) {
+		case INITIAL:
+			// set state data that may change between simulation and real-world
+			if (isSimulator) {
+			}
+			else {
+			}
+			state = UNPAUSE_WAIT_BUTTON_PRESS; // place into pause state
+			break;
+		case PAUSE_WAIT_BUTTON_RELEASE:
+			// remain in this state until released before detecting next press
+			if (!sensors.buttons.B0) {
+				state = UNPAUSE_WAIT_BUTTON_PRESS;
+			}
+			break;
+		case UNPAUSE_WAIT_BUTTON_RELEASE:
+			// user pressed 'pause' button to return to previous state
+			if (!sensors.buttons.B0) {
+				state = unpausedState;
+			}
+			break;
+		case UNPAUSE_WAIT_BUTTON_PRESS:
+			// remain in this state until user presses 'pause' button
+			if (sensors.buttons.B0) {
+				state = UNPAUSE_WAIT_BUTTON_RELEASE;
+			}
+			break;
+		default:
+			// must be in run region, and pause button has been pressed
+			unpausedState = state;
+			state = PAUSE_WAIT_BUTTON_RELEASE;
+			break;
+		}
+	}
+	//*************************************
+	// state transition - run region      *
+	//*************************************
+	else if (state == DRIVE && abs(netDistance - distanceAtManeuverStart) >= 50) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		if (prevState == TURN_L) {
+			state = TURN_R;
+			prevState = DRIVE;
+		}
+		else if (prevState == TURN_R) {
+			state = TURN_L;
+			prevState = DRIVE;
+		}
+	}
+
+	else if (state == REVERSE && abs(netDistance - distanceAtManeuverStart) >= 20) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = DRIVE;
+	}
+
+	else if (state == DRIVE) {
+		if (ay <= 0.01) {
+			if (C) {
+				if (L) {
+					state = TURN_R;
+					prevState = TURN_R;
+				}
+				else if (R) {
+					state = TURN_L;
+					prevState = TURN_L;
+				}
+				else if (R && L) {
+					state = REVERSE;
+					prevState = REVERSE;
+				}
+				else {
+					if (rand() % 2) {
+						state = TURN_R;
+						prevState = TURN_R;
+					}
+					else {
+						state = TURN_L;
+						prevState = TURN_R;
+					}
+				}
+			}
+			else if (R) {
+				if (C) {
+					state = TURN_L;
+					prevState = TURN_L;
+				}
+				else if (L) {
+					state = REVERSE;
+					prevState = REVERSE;
+				}
+				else {
+					state = TURN_L;
+					prevState = TURN_L;
+				}
+			}
+			else if (L) {
+				if (C) {
+					state = TURN_R;
+					prevState = TURN_R;
+				}
+				else if (R) {
+					state = REVERSE;
+					prevState = REVERSE;
+				}
+				else {
+					state = TURN_R;
+					prevState = TURN_R;
+				}
+			}
+		}
+		else if (ay > 0.01) {
+			state = HILL_DETECTION;
+		}
+	}
+
+
+	//}
+	else if ((state == TURN_R || state == TURN_L) && abs(netAngle - angleAtManeuverStart) >= 90) {
+	
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		if (ay > 0.01) {
+			state = HILL_DETECTION;
+		}
+		else if (ay <= 0.01){
+			state = DRIVE;
+		}
+	}
+
+	// Added state action - handling obstacle
+	
+	// else, no transitions are taken
+	// Hill detection
+
+	else if (state == HILL_DETECTION) {
+	if (ax < -0.02 || ax > 0.02) {
+		state = ADJUST;
+		}
+	else {
+		state = HILL_DETECTION;
+	}
+	}
+
+	else if (state == ADJUST  && abs(netAngle - angleAtManeuverStart) >= offsetFromY) {
+	angleAtManeuverStart = netAngle;
+	distanceAtManeuverStart = netDistance;
+	state = HILL_DETECTION;
+}
+
+	//*****************
+	//* state actions *
+	//*****************
+	switch (state) {
+	case INITIAL:
+	case PAUSE_WAIT_BUTTON_RELEASE:
+	case UNPAUSE_WAIT_BUTTON_PRESS:
+	case UNPAUSE_WAIT_BUTTON_RELEASE:
+		// in pause mode, robot should be stopped
+		leftWheelSpeed = rightWheelSpeed = 0;
+		break;
+
+	case DRIVE:
+		// full speed ahead!
+		leftWheelSpeed = rightWheelSpeed = 50;
+		break;
+
+	case TURN_R:
+		leftWheelSpeed = 50;
+		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	case TURN_L:
+		rightWheelSpeed = 50;
+		leftWheelSpeed = -rightWheelSpeed;
+		break;
+
+	case REVERSE:
+		leftWheelSpeed = rightWheelSpeed = -50;
+		break;
+
+	case HILL_DETECTION:
+		leftWheelSpeed = rightWheelSpeed = 100;
+		break;
+
+	case ADJUST:
+		leftWheelSpeed = 50;
+		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	default:
+		// Unknown state
+		leftWheelSpeed = rightWheelSpeed = 0;
+		break;
+	}
+
+
+	*pLeftWheelSpeed = leftWheelSpeed;
+	*pRightWheelSpeed = rightWheelSpeed;
+}
