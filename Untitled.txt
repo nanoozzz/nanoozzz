@@ -209,18 +209,18 @@ void KobukiNavigationStatechart(
 
 	else if (state == HILL_DETECTION) {
 	if (ax < -0.02 || ax > 0.02) {
-		state = ADJUST;
+		state = ADJUST_R;
 		}
 	else {
 		state = HILL_DETECTION;
 	}
 	}
 
-	else if (state == ADJUST  && abs(netAngle - angleAtManeuverStart) >= offsetFromY) {
-	angleAtManeuverStart = netAngle;
-	distanceAtManeuverStart = netDistance;
-	state = HILL_DETECTION;
-}
+	else if (state == ADJUST_R  && abs(netAngle - angleAtManeuverStart) >= offsetFromY) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = HILL_DETECTION;
+	}
 
 	//*****************
 	//* state actions *
@@ -257,9 +257,14 @@ void KobukiNavigationStatechart(
 		leftWheelSpeed = rightWheelSpeed = 100;
 		break;
 
-	case ADJUST:
+	case ADJUST_R:
 		leftWheelSpeed = 50;
 		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	case ADJUST_L:
+		rightWheelSpeed = 50;
+		leftWheelSpeed = -rightWheelSpeed;
 		break;
 
 	default:
