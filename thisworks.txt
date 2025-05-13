@@ -1,0 +1,451 @@
+/*
+* KobukiNavigationStatechart.c
+*
+*/
+
+#include "kobukiNavigationStatechart.h"
+#include "C:\Users\asurajith\Documents\EMB_Wkshp\ELEN90066_2025_SM1 Courseware v1.0\src\Kobuki\KobukiSensorType.h"
+#include <math.h>
+#include <stdlib.h>
+
+
+// Program States
+typedef enum {
+	INITIAL = 0,						// Initial state
+	PAUSE_WAIT_BUTTON_RELEASE,			// Paused; pause button pressed down, wait until released before detecting next press
+	UNPAUSE_WAIT_BUTTON_PRESS,			// Paused; wait for pause button to be pressed
+	UNPAUSE_WAIT_BUTTON_RELEASE,		// Paused; pause button pressed down, wait until released before returning to previous state
+	DRIVE,								// Drive straight
+	TURN_L,
+	TURN_R,
+	REVERSE,
+	REVERSE_L,
+	REVERSE_R,
+	STALL,
+	ADJUST_L,
+	ADJUST_R,
+	TURN_180,
+	TURN_R_HILL,
+	TURN_L_HILL,
+	DRIVE_SLOW,
+	STOP,
+	DRIVE_FAST
+
+} robotState_t;
+
+#define DEG_PER_RAD			(180.0 / M_PI)		// degrees per radian
+#define RAD_PER_DEG			(M_PI / 180.0)		// radians per degree
+#define ANGLE               90
+#define SPEED				200					// Adjust later if want to speed up
+
+void KobukiNavigationStatechart(
+	const short 				maxWheelSpeed,
+	const int 				netDistance,
+	const int 				netAngle,
+	const KobukiSensors_t		sensors,
+	const accelerometer_t		accelAxes,
+	short* const 			pRightWheelSpeed,
+	short* const 			pLeftWheelSpeed,
+	const bool					isSimulator
+) {
+
+	// local state
+	static robotState_t 		state = INITIAL;				// current program state
+	static robotState_t			unpausedState = DRIVE;			// state history for pause region
+	static int				distanceAtManeuverStart = 0;	// distance robot had travelled when a maneuver begins, in mm
+	static int				angleAtManeuverStart = 0;		// angle through which the robot had turned when a maneuver begins, in deg
+
+	// outputs
+	short						leftWheelSpeed = 0;				// speed of the left wheel, in mm/s
+	short					rightWheelSpeed = 0;			// speed of the right wheel, in mm/s
+
+	// variables
+	static int trackAngle = 0;
+	static bool isContacted = false;
+	static bool isOnTheEdge = false;
+	static bool isClimbing = false;
+	static bool isDescending = false;
+	static bool isStalled = false;
+	static bool enable180 = false;
+
+
+	//*****************************************************
+	// state data - process inputs                        *
+	//*****************************************************
+
+	if (state == INITIAL
+		|| state == PAUSE_WAIT_BUTTON_RELEASE
+		|| state == UNPAUSE_WAIT_BUTTON_PRESS
+		|| state == UNPAUSE_WAIT_BUTTON_RELEASE
+		|| sensors.buttons.B0				// pause button
+		) {
+		switch (state) {
+		case INITIAL:
+			// set state data that may change between simulation and real-world
+			if (isSimulator) {
+			}
+			else {
+			}
+			state = UNPAUSE_WAIT_BUTTON_PRESS; // place into pause state
+			break;
+		case PAUSE_WAIT_BUTTON_RELEASE:
+			// remain in this state until released before detecting next press
+			if (!sensors.buttons.B0) {
+				state = UNPAUSE_WAIT_BUTTON_PRESS;
+			}
+			break;
+		case UNPAUSE_WAIT_BUTTON_RELEASE:
+			// user pressed 'pause' button to return to previous state
+			if (!sensors.buttons.B0) {
+				state = unpausedState;
+			}
+			break;
+		case UNPAUSE_WAIT_BUTTON_PRESS:
+			// remain in this state until user presses 'pause' button
+			if (sensors.buttons.B0) {
+				state = UNPAUSE_WAIT_BUTTON_RELEASE;
+			}
+			break;
+		default:
+			// must be in run region, and pause button has been pressed
+			unpausedState = state;
+			state = PAUSE_WAIT_BUTTON_RELEASE;
+			break;
+		}
+	}
+	//*************************************
+	// state transition - run region      *
+	//*************************************
+	/*else if (state == DRIVE && abs(netDistance - distanceAtManeuverStart) >= 250) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = TURN;
+	}
+	else if (state == TURN && abs(netAngle - angleAtManeuverStart) >= 90) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = DRIVE;
+	}*/
+
+	// HANDLE STALL
+	else if (state == DRIVE && (sensors.bumps_wheelDrops.wheeldropLeft || sensors.bumps_wheelDrops.wheeldropRight)) {
+		isStalled = true;
+		state = STALL;
+	}
+
+	else if (state == STALL && (!sensors.bumps_wheelDrops.wheeldropLeft && !sensors.bumps_wheelDrops.wheeldropRight)) {
+		isStalled = false;
+		state = DRIVE;
+	}
+
+	// TURN A FIXED ANGLE WHEN AVOIDING OBSTACLE
+	// keep turning until the angle difference is at least ANGLE
+	else if (state == TURN_R && abs(netAngle - angleAtManeuverStart) >= ANGLE) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	else if (state == TURN_L && abs(netAngle - angleAtManeuverStart) >= ANGLE) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	// special: 180 deg turn
+	else if (state == TURN_180 && abs(netAngle - angleAtManeuverStart) >= 179) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	// TURN A DEPENDENT ANGLE FOR SELF-ORIENTING
+	// keep turning until the angle difference is at least trackAngle (depends on the angle before avoiding obstacle i.e., when isContacted is still false)
+	else if (state == ADJUST_R && abs(netAngle - angleAtManeuverStart) >= trackAngle) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	else if (state == ADJUST_L && abs(netAngle - angleAtManeuverStart) >= trackAngle) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	// AVOIDING OBSTACLE
+	// isContacted is true to indicate an obstacle was detected, regardless of the position (center, right, or left)
+	else if (state == DRIVE && sensors.bumps_wheelDrops.bumpCenter) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		if (enable180) {
+			state = TURN_180;
+			enable180 = false;
+		}
+		else {
+			state = TURN_L;
+			isContacted = true;
+		}
+		//isContacted = true;
+		//state = REVERSE;
+	}
+
+	else if (state == DRIVE && sensors.bumps_wheelDrops.bumpLeft && !sensors.bumps_wheelDrops.bumpCenter) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		isContacted = true;
+		state = TURN_R;
+	}
+
+	else if (state == DRIVE && sensors.bumps_wheelDrops.bumpRight && !sensors.bumps_wheelDrops.bumpCenter) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		isContacted = true;
+		state = TURN_L;
+	}
+
+	// RE-ORIENT AFTER AVOIDED OBSTACLE
+	// transits if the robot is not on the ramp (isOnTheEdge = false) && robot has traveled at least 100 && netAngle is non zero
+	else if (state == DRIVE && abs(netDistance - distanceAtManeuverStart) >= 120 && (netAngle >= 0) && (!isOnTheEdge)) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		trackAngle = abs(netAngle);
+
+		state = ADJUST_R;
+		isContacted = false;
+
+	}
+
+	else if (state == DRIVE && abs(netDistance - distanceAtManeuverStart) >= 120 && (netAngle <= 0) && (!isOnTheEdge)) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		trackAngle = abs(netAngle);
+
+		state = ADJUST_L;
+		isContacted = false;
+	}
+
+	// CONTINUE TRAVELING AFTER REVERSE
+	// if on flat ground, turn to an abitrary side after reverse
+	// if on ramp and detect cliff, drive after reverse
+	// transits after robot has traveled at least 50
+	else if (state == REVERSE && abs(netDistance - distanceAtManeuverStart) >= 10) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		if (isOnTheEdge) {
+			state = DRIVE; // change to DRIVE if there is a down ramp (IRL), to REVERSE_L in simulation
+			isOnTheEdge = false;
+		}
+
+		if (isContacted) {
+			state = TURN_L;
+			isContacted = false;
+		}
+
+	}
+
+	// CLEAR ENABLE180 FLAG
+	else if (state == DRIVE && abs(netDistance - distanceAtManeuverStart) >= 100 && enable180) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+		enable180 = false;
+	}
+
+	// HILL DETECTION
+	// first case same as bumpCenter
+	// the next cases same as bumpLeft and Right
+	// isOnTheEdge is true when cliff detected
+	else if ((state == DRIVE || state == DRIVE_FAST) && sensors.cliffCenter) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = REVERSE;
+		isOnTheEdge = true;
+	}
+
+	else if ((state == DRIVE_FAST || state == DRIVE) && sensors.cliffLeft) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = REVERSE_L;
+		isOnTheEdge = true;
+	}
+
+	else if ((state == DRIVE || state == DRIVE_FAST) && sensors.cliffRight) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = REVERSE_R;
+		isOnTheEdge = true;
+	}
+
+	// RE-ORIENT AFTER CLIFF DETECTED
+	// reverse for at least 80 before transit
+	else if (state == REVERSE_L && abs(netDistance - distanceAtManeuverStart) >= 10) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	else if (state == REVERSE_R && abs(netDistance - distanceAtManeuverStart) >= 10) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+
+		state = DRIVE;
+	}
+
+	// HILL CLIMBING
+	else if (state == DRIVE && accelAxes.y <= 0.2) {
+		isClimbing = true;
+		state = DRIVE_FAST;
+	}
+
+	else if ((state == DRIVE || state == DRIVE_FAST) && accelAxes.x >= 0.05 && (isClimbing || isDescending)) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = TURN_R_HILL;
+		if (isClimbing) {
+			state = TURN_R_HILL;
+		}
+		else if (isDescending) {
+			state = TURN_L_HILL;
+		}
+	}
+
+	else if ((state == DRIVE || state == DRIVE_FAST) && accelAxes.x <= -0.05 && (isClimbing || isDescending)) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		if (isClimbing) {
+			state = TURN_L_HILL;
+		}
+		else if (isDescending) {
+			state = TURN_R_HILL;
+		}
+	}
+
+	else if ((state == TURN_R_HILL || state == TURN_L_HILL) && abs(netAngle - angleAtManeuverStart) >= 10) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		state = DRIVE_FAST;
+	}
+
+	// tempo ends here
+	else if (isDescending == 1 && accelAxes.y > -0.075) {
+		state = STOP;
+	}
+	if (accelAxes.y < -0.28 && (state == DRIVE || state == DRIVE_SLOW)) {
+		angleAtManeuverStart = netAngle;
+		distanceAtManeuverStart = netDistance;
+		isDescending = 1;
+		isClimbing = 0;
+		state = DRIVE;
+	}
+	// else, no transitions are taken
+
+	//*****************
+	//* state actions *
+	//*****************
+	switch (state) {
+	case INITIAL:
+	case PAUSE_WAIT_BUTTON_RELEASE:
+	case UNPAUSE_WAIT_BUTTON_PRESS:
+	case UNPAUSE_WAIT_BUTTON_RELEASE:
+		// in pause mode, robot should be stopped
+		leftWheelSpeed = rightWheelSpeed = 0;
+		break;
+
+	case DRIVE:
+		// full speed ahead!
+		leftWheelSpeed = rightWheelSpeed = SPEED;
+		break;
+
+	case DRIVE_SLOW:
+		leftWheelSpeed = rightWheelSpeed = SPEED / 2;
+		break;
+
+	case STOP:
+		leftWheelSpeed = rightWheelSpeed = 0;
+		break;
+
+	case TURN_R:
+		leftWheelSpeed = SPEED;
+		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	case TURN_L:
+		rightWheelSpeed = SPEED;
+		leftWheelSpeed = -rightWheelSpeed;
+		break;
+
+	case ADJUST_R:
+		leftWheelSpeed = SPEED;
+		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	case ADJUST_L:
+		rightWheelSpeed = SPEED;
+		leftWheelSpeed = -rightWheelSpeed;
+		break;
+
+	case REVERSE:
+		rightWheelSpeed = -SPEED / 2;
+		leftWheelSpeed = -SPEED / 2;
+		break;
+
+	case REVERSE_L:
+		leftWheelSpeed = -SPEED / 4;
+		rightWheelSpeed = -SPEED / 2;
+		break;
+
+	case REVERSE_R:
+		rightWheelSpeed = -SPEED / 4;
+		leftWheelSpeed = -SPEED / 2;
+		break;
+
+	case TURN_180:
+		leftWheelSpeed = SPEED;
+		rightWheelSpeed = -leftWheelSpeed;
+		break;
+
+	case TURN_R_HILL:
+		leftWheelSpeed = SPEED;
+		rightWheelSpeed = -leftWheelSpeed / 4;
+		break;
+
+	case TURN_L_HILL:
+		rightWheelSpeed = SPEED;
+		leftWheelSpeed = -rightWheelSpeed / 4;
+		break;
+
+	case STALL:
+		rightWheelSpeed = 4 * SPEED;
+		leftWheelSpeed = -rightWheelSpeed;
+		break;
+
+	case DRIVE_FAST:
+		rightWheelSpeed = 2*SPEED;
+		leftWheelSpeed = 2 * SPEED;
+		break;
+
+	default:
+		// Unknown state
+		leftWheelSpeed = rightWheelSpeed = 0;
+		break;
+	}
+
+
+	*pLeftWheelSpeed = leftWheelSpeed;
+	*pRightWheelSpeed = rightWheelSpeed;
+}
