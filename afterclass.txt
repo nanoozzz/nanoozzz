@@ -18,7 +18,8 @@ typedef enum {
 	TURN_L_HILL,
 	DRIVE_SLOW,
 	STOP,
-	DRIVE_FAST
+	DRIVE_FAST,
+	DRIVE_1
 
 } robotState_t;
 
@@ -287,14 +288,14 @@ void KobukiNavigationStatechart(
 		angleAtManeuverStart = netAngle;
 		distanceAtManeuverStart = netDistance;
 
-		state = DRIVE;
+		state = DRIVE_FAST;
 	}
 
 	else if (state == REVERSE_R && abs(netDistance - distanceAtManeuverStart) >= 100) {
 		angleAtManeuverStart = netAngle;
 		distanceAtManeuverStart = netDistance;
 
-		state = DRIVE;
+		state = DRIVE_FAST;
 	}
 
 	// HILL CLIMBING
@@ -332,16 +333,21 @@ void KobukiNavigationStatechart(
 		state = DRIVE;
 	}*/
 
-	else if (/*(state == DRIVE || state == DRIVE_SLOW) &&*/ isDescending == true && accelAxes.y > -0.075) {
+	else if (/*(state == DRIVE || state == DRIVE_SLOW) &&*/ state == DRIVE_FAST /* && isDescending == true && accelAxes.y > -0.1 */&& abs(netDistance - distanceAtManeuverStart) >= 3000) {
 		state = STOP;
 	}
-	else if ((state == DRIVE || state == DRIVE_SLOW) && accelAxes.y < -0.28 ) {
+	else if ((state == DRIVE_FAST) && accelAxes.y < -0.1 && isClimbing == true) {
 		angleAtManeuverStart = netAngle;
 		distanceAtManeuverStart = netDistance;
-		isDescending = true;
+		
 		isClimbing = false;
 		state = DRIVE_SLOW;
 		//state = STOP;
+	}
+
+	else if (state == DRIVE_SLOW && accelAxes.y < -0 && isClimbing == false) {
+		isDescending = true;
+		state = DRIVE_FAST;
 	}
 	// else, no transitions are taken
 
@@ -360,6 +366,11 @@ void KobukiNavigationStatechart(
 	case DRIVE:
 		// full speed ahead!
 		leftWheelSpeed = rightWheelSpeed = SPEED;
+		break;
+
+	case DRIVE_1:
+		// full speed ahead!
+		leftWheelSpeed = rightWheelSpeed = SPEED/3;
 		break;
 
 	case DRIVE_SLOW:
