@@ -26,7 +26,7 @@ typedef enum {
 #define DEG_PER_RAD			(180.0 / M_PI)		// degrees per radian
 #define RAD_PER_DEG			(M_PI / 180.0)		// radians per degree
 #define ANGLE               90
-#define SPEED				100					// Adjust later if want to speed up
+#define SPEED				350					// Adjust later if want to speed up
 #define int16_t short
 #define int32_t int
 #define int64_t long
