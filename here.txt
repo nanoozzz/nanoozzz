@@ -307,14 +307,14 @@ void KobukiNavigationStatechart(
 
 	// RE-ORIENT AFTER CLIFF DETECTED
 	// reverse for at least 80 before transit
-	else if (state == REVERSE_L && abs(netDistance - distanceAtManeuverStart) >= 80) {
+	else if (state == REVERSE_L && abs(netDistance - distanceAtManeuverStart) >= 100) {
 		angleAtManeuverStart = netAngle;
 		distanceAtManeuverStart = netDistance;
 
 		state = DRIVE;
 	}
 
-	else if (state == REVERSE_R && abs(netDistance - distanceAtManeuverStart) >= 80) {
+	else if (state == REVERSE_R && abs(netDistance - distanceAtManeuverStart) >= 100) {
 		angleAtManeuverStart = netAngle;
 		distanceAtManeuverStart = netDistance;
 
